@@ -1,7 +1,12 @@
+// Advanced solution using Firebase Realtime streams
+// Replace your booking_page.dart with this
+
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../services/firebase_service.dart';
 import 'navigation_page.dart';
+import 'dart:async';
+import 'package:firebase_database/firebase_database.dart';
 
 class BookingPage extends StatefulWidget {
   final String keyId;
@@ -25,11 +30,145 @@ class _BookingPageState extends State<BookingPage> {
   int _selectedDurationMinutes = 30;
   List<Map<String, dynamic>> _slots = [];
   bool _isLoading = true;
+  StreamSubscription? _slotsSubscription;
+  Timer? _localExpiryCheckTimer;
 
   @override
   void initState() {
     super.initState();
+    _setupRealtimeListener();
+
+    // Set up a timer to check local expiry every 15 seconds
+    // This is a backup in case Firebase events are delayed
+    _localExpiryCheckTimer = Timer.periodic(Duration(seconds: 15), (timer) {
+      if (mounted) {
+        _checkForExpiredBookings();
+      }
+    });
+  }
+
+  void _setupRealtimeListener() {
+    // First load slots once
     _loadSlots();
+
+    // Then set up the real-time listener
+    _slotsSubscription = FirebaseService
+        .listenToSlotsChanges(widget.keyId)
+        .listen((DatabaseEvent event) {
+      if (mounted && event.snapshot.exists) {
+        try {
+          print('Received realtime update for slots');
+          _processSlotData(event.snapshot);
+        } catch (e) {
+          print('Error processing realtime slot update: $e');
+        }
+      }
+    }, onError: (error) {
+      print('Error in slots stream: $error');
+    });
+  }
+
+  void _checkForExpiredBookings() {
+    bool needsUpdate = false;
+    final now = DateTime.now();
+
+    // Check if any booked slots have expired and mark them as available locally
+    for (var i = 0; i < _slots.length; i++) {
+      final slot = _slots[i];
+      if (slot.containsKey('bookedUntil') &&
+          slot['bookedUntil'] != null &&
+          !slot['available']) {
+        try {
+          DateTime bookedUntil = DateTime.parse(slot['bookedUntil'].toString());
+          if (now.isAfter(bookedUntil)) {
+            _slots[i]['available'] = true;
+            needsUpdate = true;
+            print('Local expiry check: Slot ${slot['id']} has expired');
+          }
+        } catch (e) {
+          print('Error parsing date during local expiry check: $e');
+        }
+      }
+    }
+
+    if (needsUpdate && mounted) {
+      setState(() {}); // Update UI with newly available slots
+    }
+  }
+
+  void _processSlotData(DataSnapshot snapshot) {
+    if (!snapshot.exists) return;
+
+    Map<String, dynamic> data = Map<String, dynamic>.from(snapshot.value as Map);
+    List<Map<String, dynamic>> newSlots = [];
+
+    data.forEach((key, value) {
+      bool isAvailable = true;
+      String? bookedUntil;
+
+      if (value is Map) {
+        if (value.containsKey('available')) {
+          isAvailable = value['available'] == true;
+        }
+        if (value.containsKey('bookedUntil') && value['bookedUntil'] != null) {
+          bookedUntil = value['bookedUntil'].toString();
+          try {
+            DateTime bookedUntilDate = DateTime.parse(bookedUntil);
+            if (DateTime.now().isAfter(bookedUntilDate)) {
+              // Locally mark as available if expired
+              isAvailable = true;
+              // In real-time implementation, this should trigger an update to Firebase
+              // to free the slot in the database
+              _freeExpiredSlot(key);
+            } else {
+              isAvailable = false;
+            }
+          } catch (e) {
+            print('Error parsing bookedUntil date: $e');
+          }
+        }
+      } else if (value is bool) {
+        isAvailable = value;
+      }
+
+      newSlots.add({
+        'id': key,
+        'available': isAvailable,
+        if (bookedUntil != null) 'bookedUntil': bookedUntil
+      });
+    });
+
+    if (mounted) {
+      setState(() {
+        _slots = newSlots;
+        _isLoading = false;
+
+        // Check if selected slot is still available
+        if (_selectedSlot != null) {
+          bool isStillAvailable = _slots.any((slot) =>
+          slot['id'] == _selectedSlot && slot['available'] == true);
+
+          if (!isStillAvailable) {
+            _selectedSlot = null;
+          }
+        }
+      });
+    }
+  }
+
+  Future<void> _freeExpiredSlot(String slotId) async {
+    try {
+      final ref = FirebaseDatabase.instance
+          .ref('parking_areas/${widget.keyId}/slots/$slotId');
+
+      await ref.update({
+        "available": true,
+        "bookedUntil": null
+      });
+      print('Freed expired slot: $slotId');
+    } catch (e) {
+      print('Error freeing expired slot: $e');
+    }
   }
 
   void _loadSlots() async {
@@ -73,7 +212,7 @@ class _BookingPageState extends State<BookingPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('✅ Slot booked for $_selectedDurationMinutes minutes!')),
       );
-      _loadSlots(); // Refresh after booking
+      // No need to refresh manually as the realtime listener will update the UI
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('❗ Booking failed: $e')),
@@ -113,6 +252,25 @@ class _BookingPageState extends State<BookingPage> {
         final isSelected = _selectedSlot == slot['id'];
         final isAvailable = slot['available'];
 
+        // Calculate time remaining if slot is booked
+        String? timeRemaining;
+        if (!isAvailable && slot.containsKey('bookedUntil')) {
+          try {
+            final bookedUntil = DateTime.parse(slot['bookedUntil'].toString());
+            final now = DateTime.now();
+            if (bookedUntil.isAfter(now)) {
+              final diff = bookedUntil.difference(now);
+              if (diff.inHours > 0) {
+                timeRemaining = '${diff.inHours}h ${diff.inMinutes % 60}m';
+              } else {
+                timeRemaining = '${diff.inMinutes}m';
+              }
+            }
+          } catch (e) {
+            print('Error calculating time remaining: $e');
+          }
+        }
+
         return GestureDetector(
           onTap: isAvailable
               ? () {
@@ -133,18 +291,39 @@ class _BookingPageState extends State<BookingPage> {
               ),
             ),
             alignment: Alignment.center,
-            child: Text(
-              slot['id'],
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  slot['id'],
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                if (timeRemaining != null)
+                  Text(
+                    timeRemaining,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                    ),
+                  ),
+              ],
             ),
           ),
         );
       },
     );
+  }
+
+  @override
+  void dispose() {
+    // Clean up resources when the page is disposed
+    _slotsSubscription?.cancel();
+    _localExpiryCheckTimer?.cancel();
+    super.dispose();
   }
 
   @override

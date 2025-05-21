@@ -1,3 +1,5 @@
+// Modify your firebase_service.dart to improve slot expiration handling
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,7 +8,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 class FirebaseService {
   static final _db = FirebaseDatabase.instanceFor(
     app: Firebase.app(),
-    // dont change
     databaseURL: 'https://smartapp-9b5f4-default-rtdb.asia-southeast1.firebasedatabase.app/',
   );
 
@@ -91,8 +92,13 @@ class FirebaseService {
   static bool isUserSignedIn() {
     return _auth.currentUser != null;
   }
-//dont change
-  // Realtime Database Methods
+
+  // Method to setup real-time listener for a specific parking area
+  // This can be used to react to changes in the database automatically
+  static Stream<DatabaseEvent> listenToSlotsChanges(String parkingId) {
+    final ref = _db.ref('parking_areas/$parkingId/slots');
+    return ref.onValue;
+  }
 
   /// Get all parking areas raw
   static Future<Map<String, dynamic>> getParkingAreas() async {
@@ -125,8 +131,12 @@ class FirebaseService {
       // Debug print to see the raw data
       print('Raw slots data: $data');
 
+      // List of slots to be freed (moved out of the loop to avoid modifying during iteration)
+      List<MapEntry<String, dynamic>> slotsToFree = [];
+
       data.forEach((key, value) {
         bool isAvailable = true;
+        bool needsFreeing = false;
 
         // Check if value is a Map (some data structures might have direct boolean values)
         if (value is Map) {
@@ -142,8 +152,9 @@ class FirebaseService {
               if (DateTime.now().isBefore(bookedUntil)) {
                 isAvailable = false;
               } else {
-                // Free stale slot
-                ref.child(key).update({"bookedUntil": null});
+                // Mark for freeing instead of updating during iteration
+                needsFreeing = true;
+                isAvailable = true; // Show as available in the UI immediately
               }
             } catch (e) {
               print('Error parsing bookedUntil date for slot $key: $e');
@@ -154,8 +165,22 @@ class FirebaseService {
           isAvailable = value;
         }
 
+        // Add to the stale slots list if needed
+        if (needsFreeing) {
+          slotsToFree.add(MapEntry(key, value));
+        }
+
         slots.add({'id': key, 'available': isAvailable});
       });
+
+      // Now free all stale slots after the loop
+      for (var entry in slotsToFree) {
+        print('Freeing stale slot: ${entry.key}');
+        await ref.child(entry.key).update({
+          "available": true,
+          "bookedUntil": null
+        });
+      }
     }
 
     // Print the processed slots for debugging
@@ -202,16 +227,6 @@ class FirebaseService {
         "available": false,
         "bookedUntil": bookedUntil.toUtc().toIso8601String(),
       });
-    }
-  }
-
-  /// Save user data to the database
-  static Future<void> saveUserData(String uid, Map<String, dynamic> userData) async {
-    try {
-      await _db.ref('users/$uid').set(userData);
-    } catch (e) {
-      print('Error saving user data: $e');
-      throw e;
     }
   }
 
