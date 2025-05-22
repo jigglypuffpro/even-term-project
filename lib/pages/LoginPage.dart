@@ -160,7 +160,7 @@ class _LoginPageState extends State<LoginPage> {
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -168,66 +168,105 @@ class _LoginPageState extends State<LoginPage> {
                 Text(
                   "Welcome back ❤️",
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF6A1B9A), // Deep purple matching your theme
-                    letterSpacing: 0.5,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF6A1B9A),
+                    letterSpacing: 0.8,
                   ),
                 ),
+                SizedBox(height: 5),
                 Text(
                   "LOGIN",
-                  style: TextStyle(fontSize: 45, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    fontSize: 42,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black87,
+                  ),
                 ),
                 SizedBox(height: 30),
+
                 MyTextField(
                   icons: Icons.email,
                   lable: "Email id",
                   Onchange: _emailController,
                 ),
-                SizedBox(height: 10),
+                SizedBox(height: 16),
                 MyTextField(
-                  icons: Icons.password,
+                  icons: Icons.lock_outline,
                   lable: "Password",
                   Onchange: _passwordController,
-
                 ),
-                SizedBox(height: 40),
+                SizedBox(height: 35),
+
                 _isLoading
                     ? Center(child: CircularProgressIndicator())
                     : Column(
                   children: [
                     MyButton(
-                      icon: Icons.admin_panel_settings_rounded,
+                      icon: Icons.login,
                       Btname: "LOGIN",
                       ontap: _signInWithEmailAndPassword,
                     ),
-                    SizedBox(height: 20),
+                    SizedBox(height: 25),
                     _buildDivider(),
-                    SizedBox(height: 20),
+                    SizedBox(height: 25),
                     _buildGoogleSignInButton(),
                   ],
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 20.0, top: 20.0),
+
+                SizedBox(height: 35),
+                Center(
                   child: Text(
                     "Not a member? 👤",
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF6A1B9A), // A deep purple shade matching your theme
-                      letterSpacing: 0.5,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF6A1B9A),
                     ),
                   ),
                 ),
-                SizedBox(height:30,),
-                ElevatedButton(
-                  onPressed: () => Get.to(Signup()),
-                  child: Text("Register Now"),
+                SizedBox(height: 20),
+
+                // ✨ Improved "Register Now" Button
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Color(0xFF6A1B9A), width: 1.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: () => Get.to(Signup()),
+                    icon: Icon(Icons.app_registration, color: Color(0xFF6A1B9A)),
+                    label: Text(
+                      "Register Now",
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Color(0xFF6A1B9A),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 ),
-                SizedBox(height:30,),
-                ElevatedButton(
-                  onPressed: () => Get.to(Forgot()),
-                  child: Text("Forgot password?"),
+                SizedBox(height: 20),
+
+                // ✨ Improved "Forgot Password" Button
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton.icon(
+                    onPressed: () => Get.to(Forgot()),
+                    icon: Icon(Icons.lock_reset, color: Colors.deepPurple),
+                    label: Text(
+                      "Forgot Password?",
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: Colors.deepPurple,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -236,7 +275,6 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
-
   Widget _buildDivider() {
     return Row(
       children: [
