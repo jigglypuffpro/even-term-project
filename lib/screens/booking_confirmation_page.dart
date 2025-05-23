@@ -71,7 +71,7 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
                 ),
               ),
               child: const Text(
-                'Pay & Confirm',
+                'Confirm Booking',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
             )

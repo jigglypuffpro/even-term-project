@@ -203,41 +203,82 @@ class FirebaseService {
   //     "endTime": bookedUntil.toUtc().toIso8601String(),
   //   });
   // }
-  static Future<void> bookSlot(String parkingId, String slotId,
-      int durationMinutes) async {
+  // static Future<void> bookSlot(String parkingId, String slotId,
+  //     int durationMinutes) async {
+  //   final ref = _db.ref('parking_areas/$parkingId/slots/$slotId');
+  //
+  //   DateTime bookedUntil = DateTime.now().add(
+  //       Duration(minutes: durationMinutes));
+  //
+  //   // First check the current structure of the slot
+  //   final snapshot = await ref.get();
+  //   if (snapshot.exists) {
+  //     final value = snapshot.value;
+  //
+  //     // If it's a direct boolean value
+  //     if (value is bool) {
+  //       // Create a new structure with both available and bookedUntil
+  //       await ref.set({
+  //         "available": false,
+  //         "bookedUntil": bookedUntil.toUtc().toIso8601String(),
+  //       });
+  //     }
+  //     // If it's already a map structure
+  //     else if (value is Map) {
+  //       // Just update the existing fields
+  //       await ref.update({
+  //         "available": false,
+  //         "bookedUntil": bookedUntil.toUtc().toIso8601String(),
+  //       });
+  //     }
+  //   } else {
+  //     // If the slot doesn't exist yet, create it
+  //     await ref.set({
+  //       "available": false,
+  //       "bookedUntil": bookedUntil.toUtc().toIso8601String(),
+  //     });
+  //   }
+  // }
+  static Future<void> bookSlot(String parkingId, String slotId, int durationMinutes) async {
     final ref = _db.ref('parking_areas/$parkingId/slots/$slotId');
+    final user = _auth.currentUser;
 
-    DateTime bookedUntil = DateTime.now().add(
-        Duration(minutes: durationMinutes));
+    if (user == null) throw Exception("User not signed in");
 
-    // First check the current structure of the slot
+    DateTime now = DateTime.now();
+    DateTime bookedUntil = now.add(Duration(minutes: durationMinutes));
+
     final snapshot = await ref.get();
+
     if (snapshot.exists) {
       final value = snapshot.value;
 
-      // If it's a direct boolean value
       if (value is bool) {
-        // Create a new structure with both available and bookedUntil
         await ref.set({
           "available": false,
           "bookedUntil": bookedUntil.toUtc().toIso8601String(),
         });
-      }
-      // If it's already a map structure
-      else if (value is Map) {
-        // Just update the existing fields
+      } else if (value is Map) {
         await ref.update({
           "available": false,
           "bookedUntil": bookedUntil.toUtc().toIso8601String(),
         });
       }
     } else {
-      // If the slot doesn't exist yet, create it
       await ref.set({
         "available": false,
         "bookedUntil": bookedUntil.toUtc().toIso8601String(),
       });
     }
+
+    // ✅ Add this block to save to booking history
+    final bookingHistoryRef = _db.ref('bookings/${user.uid}').push();
+    await bookingHistoryRef.set({
+      "parkingId": parkingId,
+      "slotId": slotId,
+      "startTime": now.toUtc().toIso8601String(),
+      "endTime": bookedUntil.toUtc().toIso8601String(),
+    });
   }
   /// Save user data to the database
   static Future<void> saveUserData(String uid, Map<String, dynamic> userData) async {
