@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:smart_parking_app/screens/booked_slots_page.dart';
 import '../services/firebase_service.dart';
 import 'booking_page.dart';
+import 'booked_slots_page.dart'; // Create this page
 import 'package:geolocator/geolocator.dart';
 
 class MapScreen extends StatefulWidget {
@@ -60,15 +62,11 @@ class _MapScreenState extends State<MapScreen> {
     try {
       final data = await FirebaseService.getParkingAreas();
 
-      // Debug print the raw data
-      print('Parking areas data: $data');
-
       Set<Marker> newMarkers = {};
       double? nearestDistance;
       LatLng? nearestSpot;
 
       data.forEach((key, value) {
-        // Make sure we have lat and lng values
         if (value != null && value['lat'] != null && value['lng'] != null) {
           try {
             double lat = double.parse(value['lat'].toString());
@@ -99,7 +97,7 @@ class _MapScreenState extends State<MapScreen> {
                 infoWindow: InfoWindow(
                   title: name,
                   snippet: distance != null
-                      ? 'Tap to book (${(distance / 1000).toStringAsFixed(2)} km away)'
+                      ? 'Tap to book (\${(distance / 1000).toStringAsFixed(2)} km away)'
                       : 'Tap to book',
                 ),
                 onTap: () {
@@ -107,10 +105,9 @@ class _MapScreenState extends State<MapScreen> {
                 },
               ),
             );
-
             print('Added marker for: $name at $lat, $lng');
           } catch (e) {
-            print('Error processing parking area $key: $e');
+            print('Error processing parking area \$key: \$e');
           }
         }
       });
@@ -120,14 +117,11 @@ class _MapScreenState extends State<MapScreen> {
         _isLoading = false;
       });
 
-      print('Total markers: ${newMarkers.length}');
-
-      // Zoom to nearest spot if found
       if (nearestSpot != null && _mapController != null) {
         _mapController.animateCamera(CameraUpdate.newLatLngZoom(nearestSpot!, 15));
       }
     } catch (e) {
-      print('❗ Error fetching parking spots: $e');
+      print('❗ Error fetching parking spots: \$e');
       setState(() {
         _isLoading = false;
       });
@@ -146,7 +140,7 @@ class _MapScreenState extends State<MapScreen> {
         ),
       ),
     ).then((_) {
-      fetchParkingSpots(); // Refresh on return
+      fetchParkingSpots();
     });
   }
 
@@ -155,18 +149,58 @@ class _MapScreenState extends State<MapScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Smart Parking Map'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh),
-            onPressed: fetchParkingSpots,
-          ),
-        ],
+      ),
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(color: Colors.purple),
+              child: Text('Welcome!', style: TextStyle(color: Colors.white, fontSize: 24)),
+            ),
+            ListTile(
+              leading: Icon(Icons.account_circle),
+              title: Text('Account'),
+              onTap: () {
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.book_online),
+              title: Text('Booked Slots'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => BookedSlotsPage()),
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.settings),
+              title: Text('Settings'),
+              onTap: () {},
+            ),
+            ListTile(
+              leading: Icon(Icons.info),
+              title: Text('About'),
+              onTap: () {},
+            ),
+            ListTile(
+              leading: Icon(Icons.logout),
+              title: Text('Sign Out'),
+              onTap: () async {
+                await FirebaseService.signOut();
+                Navigator.of(context).pushReplacementNamed('/login');
+              },
+            ),
+          ],
+        ),
       ),
       body: Stack(
         children: [
           GoogleMap(
             initialCameraPosition: CameraPosition(
-              target: _userLocation ?? LatLng(25.6097, 85.1239), // Default to Patna
+              target: _userLocation ?? LatLng(25.6097, 85.1239),
               zoom: 13,
             ),
             onMapCreated: (controller) {

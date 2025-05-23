@@ -74,7 +74,9 @@ class FirebaseService {
   /// Sign out
   static Future<void> signOut() async {
     try {
-      await _googleSignIn.signOut();
+      if (await _googleSignIn.isSignedIn()) {
+        await _googleSignIn.signOut();
+      }
       await _auth.signOut();
     } catch (e) {
       print('Error signing out: $e');
@@ -166,8 +168,41 @@ class FirebaseService {
 
     return slots;
   }
-
+  static Stream<DatabaseEvent> listenToSlotsChanges(String parkingId) {
+    final ref = _db.ref('parking_areas/$parkingId/slots');
+    return ref.onValue;
+  }
   /// Book specific slot with duration in minutes
+  // static Future<void> bookSlot(
+  //     String parkingId,
+  //     String slotId,
+  //     int durationMinutes,
+  //     ) async {
+  //   final ref = _db.ref('parking_areas/$parkingId/slots/$slotId');
+  //   final user = _auth.currentUser;
+  //
+  //   if (user == null) {
+  //     throw Exception("User not signed in");
+  //   }
+  //
+  //   DateTime now = DateTime.now();
+  //   DateTime bookedUntil = now.add(Duration(minutes: durationMinutes));
+  //
+  //   // Update the slot
+  //   await ref.update({
+  //     "available": false,
+  //     "bookedUntil": bookedUntil.toUtc().toIso8601String(),
+  //   });
+  //
+  //   // Add booking history under the user
+  //   final bookingHistoryRef = _db.ref('bookings/${user.uid}').push();
+  //   await bookingHistoryRef.set({
+  //     "parkingId": parkingId,
+  //     "slotId": slotId,
+  //     "startTime": now.toUtc().toIso8601String(),
+  //     "endTime": bookedUntil.toUtc().toIso8601String(),
+  //   });
+  // }
   static Future<void> bookSlot(String parkingId, String slotId,
       int durationMinutes) async {
     final ref = _db.ref('parking_areas/$parkingId/slots/$slotId');
@@ -204,7 +239,6 @@ class FirebaseService {
       });
     }
   }
-
   /// Save user data to the database
   static Future<void> saveUserData(String uid, Map<String, dynamic> userData) async {
     try {
@@ -214,7 +248,26 @@ class FirebaseService {
       throw e;
     }
   }
+  static Future<List<Map<String, dynamic>>> getUserBookings() async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception("User not signed in");
 
+    final ref = _db.ref('bookings/${user.uid}');
+    final snapshot = await ref.get();
+
+    List<Map<String, dynamic>> bookings = [];
+    if (snapshot.exists) {
+      Map<String, dynamic> data = Map<String, dynamic>.from(snapshot.value as Map);
+      data.forEach((key, value) {
+        bookings.add({
+          "id": key,
+          ...Map<String, dynamic>.from(value),
+        });
+      });
+    }
+
+    return bookings;
+  }
   /// Get user data from the database
   static Future<Map<String, dynamic>?> getUserData(String uid) async {
     try {
