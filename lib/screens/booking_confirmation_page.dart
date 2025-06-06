@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:smart_parking_app/services/payment_service.dart';
 
+import '../services/firebase_service.dart';
+
 class BookingConfirmationPage extends StatefulWidget {
+  final String keyId;
   final String slotId;
   final String place;
   final int durationMinutes;
 
   const BookingConfirmationPage({
+    required this.keyId,
     required this.slotId,
     required this.place,
     required this.durationMinutes,
@@ -37,12 +41,20 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
     super.dispose();
   }
 
-  void _handlePaymentSuccess(PaymentSuccessResponse response) {
-    // Confirm the booking here and store in Firebase
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("✅ Payment Successful! Booking Confirmed.")),
-    );
-    Navigator.pop(context);
+  void _handlePaymentSuccess(PaymentSuccessResponse response) async {
+    try {
+      // Now book the slot after successful payment
+      await FirebaseService.bookSlot(widget.keyId, widget.slotId, widget.durationMinutes);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("✅ Payment Successful! Booking Confirmed.")),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Booking failed after payment. Please contact support.")),
+      );
+    }
   }
 
   void _handlePaymentError(PaymentFailureResponse response) {
@@ -92,10 +104,10 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
                   phoneController.text,
                 );
                 // Proceed with confirmation logic
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("✅ Booking Confirmed!")),
-                );
-                Navigator.pop(context);
+                // ScaffoldMessenger.of(context).showSnackBar(
+                //   const SnackBar(content: Text("✅ Booking Confirmed!")),
+                // );
+                // Navigator.pop(context);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF6A1B9A), // Light purple
