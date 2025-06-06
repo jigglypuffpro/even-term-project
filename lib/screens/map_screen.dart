@@ -100,7 +100,7 @@ class _MapScreenState extends State<MapScreen> {
                 infoWindow: InfoWindow(
                   title: name,
                   snippet: distance != null
-                      ? 'Tap to book (\${(distance / 1000).toStringAsFixed(2)} km away)'
+                      ? 'Tap to book (${(distance / 1000).toStringAsFixed(2)} km away)'
                       : 'Tap to book',
                 ),
                 onTap: () {
