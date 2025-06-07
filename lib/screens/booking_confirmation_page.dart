@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'package:smart_parking_app/services/payment_service.dart';
+import '../services/firebase_service.dart';
 
 class BookingConfirmationPage extends StatefulWidget {
+  final String keyId;
   final String slotId;
   final String place;
   final int durationMinutes;
 
   const BookingConfirmationPage({
+    required this.keyId,
     required this.slotId,
     required this.place,
     required this.durationMinutes,
@@ -20,16 +25,57 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController vehicleController = TextEditingController();
   final TextEditingController phoneController = TextEditingController();
+  final paymentService = PaymentService();
+
+  @override
+  void initState() {
+    super.initState();
+    paymentService.init(_handlePaymentSuccess, _handlePaymentError);
+  }
+
+  @override
+  void dispose() {
+    paymentService.dispose();
+    super.dispose();
+  }
+
+  void _handlePaymentSuccess(PaymentSuccessResponse response) async {
+    try {
+      await FirebaseService.bookSlot(widget.keyId, widget.slotId, widget.durationMinutes);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ Payment Successful! Booking Confirmed.")),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("❌ Booking failed after payment. Please contact support.")),
+      );
+    }
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("❌ Payment Failed. Please try again.")),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final backgroundColor = theme.scaffoldBackgroundColor;
+    final primaryColor = colorScheme.primary;
+    final secondaryContainer = colorScheme.secondaryContainer;
+    final surfaceColor = colorScheme.surface;
+
     final double estimatedCost = widget.durationMinutes * 1.0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F0FF),
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF6A1B9A),
-        foregroundColor: Colors.white,
+        backgroundColor: theme.appBarTheme.backgroundColor ?? primaryColor,
+        foregroundColor: theme.appBarTheme.foregroundColor ?? Colors.white,
         title: const Text('Booking Details'),
         centerTitle: true,
         elevation: 0,
@@ -39,13 +85,13 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
         child: ListView(
           children: [
             const SizedBox(height: 16),
-            _buildDetailsCard(estimatedCost),
+            _buildDetailsCard(estimatedCost, surfaceColor, primaryColor),
             const SizedBox(height: 24),
-            _buildInputField(nameController, 'Your Name', Icons.person),
+            _buildInputField(nameController, 'Your Name', Icons.person, surfaceColor, primaryColor),
             const SizedBox(height: 16),
-            _buildInputField(vehicleController, 'Vehicle Number', Icons.directions_car),
+            _buildInputField(vehicleController, 'Vehicle Number', Icons.directions_car, surfaceColor, primaryColor),
             const SizedBox(height: 16),
-            _buildInputField(phoneController, 'Phone Number (Optional)', Icons.phone),
+            _buildInputField(phoneController, 'Phone Number (Optional)', Icons.phone, surfaceColor, primaryColor),
             const SizedBox(height: 32),
             ElevatedButton(
               onPressed: () {
@@ -55,23 +101,23 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
                   );
                   return;
                 }
-
-                // Proceed with confirmation logic
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("✅ Booking Confirmed!")),
+                paymentService.openCheckout(
+                  estimatedCost,
+                  nameController.text,
+                  '',
+                  phoneController.text,
                 );
-                Navigator.pop(context);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6A1B9A), // Light purple
-                foregroundColor: Colors.white,
+                backgroundColor: primaryColor,
+                foregroundColor: colorScheme.onPrimary,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
               child: const Text(
-                'Confirm Booking',
+                'Pay and Confirm',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
             )
@@ -81,33 +127,33 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
     );
   }
 
-  Widget _buildDetailsCard(double cost) {
+  Widget _buildDetailsCard(double cost, Color cardColor, Color iconColor) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFEDE7F6),
+        color: cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFD1C4E9)),
+        border: Border.all(color: iconColor.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _infoRow(Icons.confirmation_number, 'Slot ID', widget.slotId),
+          _infoRow(Icons.confirmation_number, 'Slot ID', widget.slotId, iconColor),
           const SizedBox(height: 12),
-          _infoRow(Icons.location_on, 'Place', widget.place),
+          _infoRow(Icons.location_on, 'Place', widget.place, iconColor),
           const SizedBox(height: 12),
-          _infoRow(Icons.timer, 'Duration', '${widget.durationMinutes} minutes'),
+          _infoRow(Icons.timer, 'Duration', '${widget.durationMinutes} minutes', iconColor),
           const SizedBox(height: 12),
-          _infoRow(Icons.attach_money, 'Estimated Cost', '₹${cost.toStringAsFixed(2)}'),
+          _infoRow(Icons.attach_money, 'Estimated Cost', '₹${cost.toStringAsFixed(2)}', iconColor),
         ],
       ),
     );
   }
 
-  Widget _infoRow(IconData icon, String label, String value) {
+  Widget _infoRow(IconData icon, String label, String value, Color iconColor) {
     return Row(
       children: [
-        Icon(icon, color: const Color(0xFF7E57C2)),
+        Icon(icon, color: iconColor),
         const SizedBox(width: 12),
         Expanded(child: Text('$label:', style: const TextStyle(fontWeight: FontWeight.w600))),
         Text(value, style: const TextStyle(fontSize: 16)),
@@ -115,15 +161,15 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
     );
   }
 
-  Widget _buildInputField(TextEditingController controller, String hint, IconData icon) {
+  Widget _buildInputField(TextEditingController controller, String hint, IconData icon, Color fillColor, Color iconColor) {
     return TextField(
       controller: controller,
-      cursorColor: const Color(0xFF7E57C2),
+      cursorColor: iconColor,
       decoration: InputDecoration(
         filled: true,
-        fillColor: const Color(0xFFF3E5F5),
+        fillColor: fillColor,
         hintText: hint,
-        prefixIcon: Icon(icon, color: const Color(0xFF7E57C2)),
+        prefixIcon: Icon(icon, color: iconColor),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,

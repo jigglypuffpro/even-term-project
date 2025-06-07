@@ -28,6 +28,12 @@ class FirebaseService {
       throw e;
     }
   }
+  static Future<void> updateUserName(String name) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      await FirebaseDatabase.instance.ref('users/$uid').update({'name': name});
+    }
+  }
 
   /// Sign up with email and password
   static Future<UserCredential> signUpWithEmailAndPassword(String email, String password) async {
